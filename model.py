@@ -12,10 +12,16 @@ class BasicTransformer(nn.Module):
 
         
     def forward(self, x):
-        reshaped_x = x.view(INPUT_NUM_FRAMES, 1, INPUT_NUM_SHOTS, INPUT_NUM_SAMPLES)
-        encode_out = self.encoder(reshaped_x)
-        reshaped_encode_out = encode_out.view(INPUT_NUM_FRAMES, INPUT_NUM_SHOTS, INPUT_NUM_SAMPLES)
+        batch_size, channels, shots, samples = x.size()
+        #reshaped_x = x.view(INPUT_NUM_FRAMES, 1, INPUT_NUM_SHOTS, INPUT_NUM_SAMPLES)
+        encode_out = self.encoder(x)
+        reshaped_encode_out = encode_out.permute(2, 0, 3,
+                                                 1).contiguous()  # Shape: [INPUT_NUM_SHOTS, batch_size, INPUT_NUM_SAMPLES, OUT_CHANNELS]
+        reshaped_encode_out = reshaped_encode_out.view(INPUT_NUM_SHOTS, batch_size,
+                                                       -1)  # Merge last two dims for d_model
         output = self.transformer(reshaped_encode_out, reshaped_encode_out)
+        output = output.view(INPUT_NUM_SHOTS, batch_size, OUT_CHANNELS, INPUT_NUM_SAMPLES).permute(1, 2, 0,
+                                                                                                   3).contiguous()
         return output
 
 if __name__ == '__main__':
