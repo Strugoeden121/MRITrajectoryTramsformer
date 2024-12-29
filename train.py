@@ -2,7 +2,7 @@ import torch
 import torch.nn as nn
 import torch.optim as optim
 from torch.utils.data import DataLoader, TensorDataset
-from model import BasicTransformer, BasicTransformerTotal
+from model import BasicTransformer
 from utils.constants import INPUT_NUM_FRAMES, INPUT_NUM_SHOTS, INPUT_NUM_SAMPLES, IN_CHANNELS, OUT_CHANNELS
 
 
@@ -58,25 +58,12 @@ def train_autoregressive(model, dataloader, criterion, optimizer, epochs=10, dev
             predictions = torch.zeros_like(targets)  # To store predictions for the entire sequence
 
             # Initialize the autoregressive process with the first frame of the input
-            current_input = inputs[:, :, :, :]  # Start with the first input
-
             optimizer.zero_grad()  # Clear gradients
 
-            # Autoregressive loop over frames
-            for t in range(INPUT_NUM_FRAMES):
-                # Forward pass
-                output = model(current_input)
-
-                # Store prediction
-                predictions[:, t, :, :] = output[:, 0, :, :]
-
-                #current_input = torch.cat((inputs[:, :, :, :], output[:, 0, :, :].unsqueeze(1)), dim=1)
-
-                # Update current_input for next time step
-                current_input = output[:, 0, :, :].unsqueeze(1)
+            output = model(inputs, batch_size)
 
             # Compute loss
-            loss = criterion(predictions, targets)
+            loss = criterion(output, targets)
 
             # Backward pass and optimization
             loss.backward()
@@ -137,15 +124,15 @@ def train_autoregressive_total(model, dataloader, criterion, optimizer, epochs=1
 
 # Model, loss, and optimizer
 if __name__ == '__main__':
-    #model = BasicTransformer()
-    model = BasicTransformerTotal(in_channels=IN_CHANNELS)
+    model = BasicTransformer()
+    #model = BasicTransformerTotal(in_channels=IN_CHANNELS)
 
     criterion = nn.MSELoss()
     optimizer = optim.Adam(model.parameters(), lr=0.001)
 
     # Train the model
-    #train_autoregressive(model, train_loader, criterion, optimizer, epochs=10)
-    train_autoregressive_total(model, train_loader, criterion, optimizer, epochs=10)
+    train_autoregressive(model, train_loader, criterion, optimizer, epochs=10)
+    #train_autoregressive_total(model, train_loader, criterion, optimizer, epochs=10)
 
     # Save the model
     torch.save(model.state_dict(), "basic_transformer_model.pth")
