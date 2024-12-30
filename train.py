@@ -2,8 +2,8 @@ import torch
 import torch.nn as nn
 import torch.optim as optim
 from torch.utils.data import DataLoader, TensorDataset
-from model import BasicTransformer
-from utils.constants import INPUT_NUM_FRAMES, INPUT_NUM_SHOTS, INPUT_NUM_SAMPLES, IN_CHANNELS, OUT_CHANNELS
+from model import BasicTransformerShot, BasicTransformerTraj
+from utils.constants import INPUT_NUM_FRAMES, INPUT_NUM_SHOTS, INPUT_NUM_SAMPLES, IN_CHANNELS, OUT_CHANNELS, FEATURE_DIM
 
 
 # Dummy dataset generation (replace with real data)
@@ -44,7 +44,7 @@ def train(model, dataloader, criterion, optimizer, epochs=10, device="cpu"):
 
         print(f"Epoch [{epoch+1}/{epochs}], Average Loss: {epoch_loss/len(dataloader):.4f}")
 
-def train_autoregressive(model, dataloader, criterion, optimizer, epochs=10, device="cpu"):
+def train_autoregressive_trajectory(model, dataloader, criterion, optimizer, epochs=10, device="cpu"):
     for epoch in range(epochs):
         model.train()  # Set the model to training mode
         epoch_loss = 0.0
@@ -77,7 +77,7 @@ def train_autoregressive(model, dataloader, criterion, optimizer, epochs=10, dev
 
         print(f"Epoch [{epoch+1}/{epochs}], Average Loss: {epoch_loss/len(dataloader):.4f}")
 
-def train_autoregressive_total(model, dataloader, criterion, optimizer, epochs=10, device="cpu"):
+def train_autoregressive_shot(model, dataloader, criterion, optimizer, epochs=10, device="cpu", only_last_frame=False):
     for epoch in range(epochs):
         model.train()  # Set the model to training mode
         epoch_loss = 0.0
@@ -98,13 +98,19 @@ def train_autoregressive_total(model, dataloader, criterion, optimizer, epochs=1
             # Autoregressive loop over frames
             for t in range(INPUT_NUM_FRAMES):
                 # Forward pass
-                output = model(current_input)
+                if only_last_frame:
+                    output = model(current_input, only_last_frame)
+                else:
+                    output = model(current_input, only_last_frame, t+1)
 
                 # Store prediction
                 predictions[:, t, :, :] = output[:, 0, :, :]
 
                 # Update current_input for next time step
-                current_input = torch.cat((inputs, output[:, 0, :, :].unsqueeze(1)), dim=1)
+                if only_last_frame:
+                    current_input = output[:, 0, :, :].unsqueeze(1)
+                else:
+                    current_input = torch.cat((current_input, output[:, :, :, :]), dim=0)
 
             # Compute loss
             loss = criterion(predictions, targets)
@@ -124,14 +130,14 @@ def train_autoregressive_total(model, dataloader, criterion, optimizer, epochs=1
 
 # Model, loss, and optimizer
 if __name__ == '__main__':
-    model = BasicTransformer()
-    #model = BasicTransformerTotal(in_channels=IN_CHANNELS)
+    #model = BasicTransformerTraj()
+    model = BasicTransformerShot()
 
     criterion = nn.MSELoss()
     optimizer = optim.Adam(model.parameters(), lr=0.001)
 
     # Train the model
-    train_autoregressive(model, train_loader, criterion, optimizer, epochs=10)
+    train_autoregressive_shot(model, train_loader, criterion, optimizer, epochs=10)
     #train_autoregressive_total(model, train_loader, criterion, optimizer, epochs=10)
 
     # Save the model
