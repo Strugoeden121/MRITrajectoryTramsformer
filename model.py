@@ -15,21 +15,21 @@ class BasicTransformerTraj(nn.Module):
 
         self.linear = nn.Linear(FEATURE_DIM, INPUT_NUM_SHOTS * INPUT_NUM_SAMPLES)
 
-    def forward(self, x, batch_size=1):
+    def forward(self, x, num_dims=2):
         #reshaped_x = x.view(INPUT_NUM_FRAMES, 1, INPUT_NUM_SHOTS, INPUT_NUM_SAMPLES)
-        x = x.permute(1, 0, 2, 3)
+        x = x.permute(3, 0, 1, 2)
         encode_out = self.encoder(x)
         pooled_out = self.global_pool(encode_out)  # Shape: (batch_size, FEATURE_DIM, 1, 1)
 
         # Step 3: Reshape to (batch_size, 1, FEATURE_DIM)
-        reshaped_encode_out = pooled_out.view(batch_size, 1, FEATURE_DIM)  
+        reshaped_encode_out = pooled_out.view(num_dims, 1, FEATURE_DIM)
        # reshaped_encode_out = encode_out.permute(2, 0, 3,
                                  #                1).contiguous()  # Shape: [INPUT_NUM_SHOTS, batch_size, INPUT_NUM_SAMPLES, OUT_CHANNELS]
         #reshaped_encode_out = reshaped_encode_out.view(batch_size,
                            #                            -1)  # Merge last two dims for d_model
         #reshaped_encode_out = reshaped_encode_out.unsqueeze(1)  # Add seq dim
         
-        predictions = torch.zeros(batch_size, INPUT_NUM_FRAMES, FEATURE_DIM)
+        predictions = torch.zeros(num_dims, INPUT_NUM_FRAMES, FEATURE_DIM)
         # Autoregressive loop over frames
         current_input = reshaped_encode_out[:, :, :]  # Start with the first input
 
@@ -48,7 +48,7 @@ class BasicTransformerTraj(nn.Module):
             
         current_input = self.linear(current_input)
 
-        current_input = current_input.reshape(batch_size, INPUT_NUM_FRAMES, INPUT_NUM_SHOTS, INPUT_NUM_SAMPLES)
+        current_input = current_input.reshape(num_dims, INPUT_NUM_FRAMES, INPUT_NUM_SHOTS, INPUT_NUM_SAMPLES)
         return current_input
 
 
