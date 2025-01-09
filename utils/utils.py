@@ -1,6 +1,6 @@
 import torch
 import torch.nn as nn
-from utils.constants import INPUT_NUM_FRAMES, INPUT_NUM_SHOTS, INPUT_NUM_SAMPLES, IN_CHANNELS, OUT_CHANNELS
+from MRITramsformer.utils.constants import INPUT_NUM_FRAMES, INPUT_NUM_SHOTS, INPUT_NUM_SAMPLES, IN_CHANNELS, OUT_CHANNELS
 
 
 # Dummy dataset generation (replace with real data)

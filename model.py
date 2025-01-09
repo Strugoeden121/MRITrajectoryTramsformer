@@ -2,7 +2,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-from utils.constants import INPUT_NUM_FRAMES, INPUT_NUM_SHOTS, INPUT_NUM_SAMPLES, IN_CHANNELS, OUT_CHANNELS,FEATURE_DIM
+from MRITramsformer.utils.constants import INPUT_NUM_FRAMES, INPUT_NUM_SHOTS, INPUT_NUM_SAMPLES, IN_CHANNELS, OUT_CHANNELS,FEATURE_DIM
 
 class BasicTransformerTraj(nn.Module):
     def __init__(self):
@@ -15,8 +15,9 @@ class BasicTransformerTraj(nn.Module):
 
         self.linear = nn.Linear(FEATURE_DIM, INPUT_NUM_SHOTS * INPUT_NUM_SAMPLES)
 
-    def forward(self, x, batch_size):
+    def forward(self, x, batch_size=1):
         #reshaped_x = x.view(INPUT_NUM_FRAMES, 1, INPUT_NUM_SHOTS, INPUT_NUM_SAMPLES)
+        x = x.permute(1, 0, 2, 3)
         encode_out = self.encoder(x)
         pooled_out = self.global_pool(encode_out)  # Shape: (batch_size, FEATURE_DIM, 1, 1)
 
