@@ -2,7 +2,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-from MRITramsformer.utils.constants import INPUT_NUM_FRAMES, INPUT_NUM_SHOTS, INPUT_NUM_SAMPLES, IN_CHANNELS, OUT_CHANNELS,FEATURE_DIM
+from MRITramsformer.utils.constants import INPUT_NUM_FRAMES, INPUT_NUM_SHOTS, INPUT_NUM_SAMPLES, IN_CHANNELS, OUT_CHANNELS,FEATURE_DIM, NUM_DIMS
 
 class BasicTransformerTraj(nn.Module):
     def __init__(self):
@@ -55,26 +55,49 @@ class BasicTransformerTraj(nn.Module):
 class BasicTransformerShot(nn.Module):
     def __init__(self):
         super(BasicTransformerShot, self).__init__()
-        self.encoder = nn.Conv2d(in_channels=IN_CHANNELS, out_channels=OUT_CHANNELS, kernel_size=3, stride=1, padding=1)
-        self.transformer = nn.Transformer(d_model=INPUT_NUM_SAMPLES, nhead=3, num_encoder_layers=6)
 
-    def forward(self, x, only_last_frame=False, time_stamp=None):
-        batch_size, channels, shots, samples = x.size()
-        if time_stamp is not None:
-            out_batch_size = batch_size // time_stamp
-            output = torch.zeros(out_batch_size, INPUT_NUM_SHOTS, samples)
+        self.encoder = nn.Conv2d(in_channels = IN_CHANNELS, out_channels = FEATURE_DIM, kernel_size = 3, stride = 1, padding = 1)
+        self.transformer = nn.Transformer(d_model=FEATURE_DIM, nhead=4, num_encoder_layers=6)
+        self.global_pool = nn.AdaptiveAvgPool2d((1, 1))
+        self.linear = nn.Linear(FEATURE_DIM, INPUT_NUM_SHOTS * INPUT_NUM_SAMPLES)
+
+
+    def forward(self, x,  time_stamp=None):
+        current_frames, shots, samples, dim = x.size()
+        num_dims = 2
+        x = x.permute(3, 0, 1, 2)
+        output = torch.zeros(num_dims, 1, FEATURE_DIM)
         # reshaped_x = x.view(INPUT_NUM_FRAMES, 1, INPUT_NUM_SHOTS, INPUT_NUM_SAMPLES)
         encode_out = self.encoder(x)
-        reshaped_encode_out = encode_out.permute(2, 0, 3,
-                                                 1).contiguous()  # Shape: [INPUT_NUM_SHOTS, batch_size, INPUT_NUM_SAMPLES, OUT_CHANNELS]
-        reshaped_encode_out = reshaped_encode_out.view(INPUT_NUM_SHOTS, batch_size,
-                                                       -1)  # Merge last two dims for d_model
-        if only_last_frame:
-            output = self.transformer(reshaped_encode_out, reshaped_encode_out)
-        else:
-            output = self.transformer(reshaped_encode_out.permute(1, 0, 2), output)
-        output = output.reshape(INPUT_NUM_SHOTS, out_batch_size, OUT_CHANNELS, INPUT_NUM_SAMPLES).permute(1, 2, 0,
-                                                                                                   3).contiguous()
+        pooled_out = self.global_pool(encode_out)
+        reshaped_encode_out = pooled_out.view(num_dims, 1, FEATURE_DIM)
+        output = self.transformer(reshaped_encode_out.permute(1, 0, 2), output.permute(1, 0, 2))
+        output = self.linear(output)
+        output = output.permute(1, 0, 2).reshape(num_dims, 1, INPUT_NUM_SHOTS, INPUT_NUM_SAMPLES)
+        return output
+
+class BasicTransformerShotAllFrames(nn.Module):
+    def __init__(self):
+        super(BasicTransformerShotAllFrames, self).__init__()
+
+        self.encoder = nn.Conv2d(in_channels = NUM_DIMS, out_channels = FEATURE_DIM, kernel_size = 3, stride = 1, padding = 1)
+        self.transformer = nn.Transformer(d_model=FEATURE_DIM, nhead=4, num_encoder_layers=6)
+        self.global_pool = nn.AdaptiveAvgPool2d((2, 1))
+        self.linear = nn.Linear(FEATURE_DIM, INPUT_NUM_SHOTS * INPUT_NUM_SAMPLES)
+
+
+    def forward(self, x,  time_stamp=None):
+        current_frames, shots, samples, dim = x.size()
+        num_dims = 2
+        x = x.permute(0, 3, 1, 2)
+        output = torch.zeros(num_dims, 1, FEATURE_DIM)
+        # reshaped_x = x.view(INPUT_NUM_FRAMES, 1, INPUT_NUM_SHOTS, INPUT_NUM_SAMPLES)
+        encode_out = self.encoder(x)
+        pooled_out = self.global_pool(encode_out)
+        reshaped_encode_out = pooled_out.reshape(num_dims, current_frames, FEATURE_DIM)
+        output = self.transformer(reshaped_encode_out.permute(1, 0, 2), output.permute(1, 0, 2))
+        output = self.linear(output)
+        output = output.permute(1, 0, 2).reshape(num_dims, 1, INPUT_NUM_SHOTS, INPUT_NUM_SAMPLES)
         return output
     
     
